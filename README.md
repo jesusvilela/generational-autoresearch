@@ -4,9 +4,9 @@ Autonomous LLM pretraining research running entirely on [Hugging Face infrastruc
 
 Fork of [karpathy/autoresearch](https://github.com/karpathy/autoresearch), adapted to run on HF Jobs with mounted datasets and storage buckets.
 
-![progress](https://huggingface.co/buckets/mishig/autoresearch-results/resolve/progress.png)
-
 See an [example 24-hour run on A100](https://huggingface.co/buckets/mishig/autoresearch-results) — experiment artifacts including results, best models, and the full agent chat transcript are all saved to the bucket.
+
+![progress](https://huggingface.co/buckets/mishig/autoresearch-results/resolve/progress.png)
 
 ## Two files. That's it.
 
