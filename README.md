@@ -42,7 +42,7 @@ That's it. No downloads, no data prep, no wasted compute.
 
 The `-v` flags above use [HF volume mounts](https://github.com/huggingface/hf-mount) to make remote data appear as local files inside the job. The training script reads parquet shards from `/data` as if the entire [karpathy/climbmix-400b-shuffle](https://huggingface.co/datasets/karpathy/climbmix-400b-shuffle) dataset (6,543 shards) was already on disk — no bulk download, no waiting. Files are fetched lazily on access.
 
-The tokenizer and other reusable artifacts live in an [HF Storage Bucket](https://huggingface.co/docs/hub/storage-buckets) (`mishig/autoresearch-cache`), mounted read-write at `/cache`. The original repo retrains a BPE tokenizer from scratch every run (~60s on CPU). By storing it in a bucket, we skip that entirely — zero compute wasted on repetitive setup work. Buckets are mutable, non-versioned storage ideal for intermediate artifacts like tokenizers, checkpoints, and logs.
+The tokenizer and other reusable artifacts live in an [HF Storage Bucket](https://huggingface.co/docs/hub/storage-buckets) ([`mishig/autoresearch-cache`](https://huggingface.co/buckets/mishig/autoresearch-cache)), mounted read-write at `/cache`. The original repo retrains a BPE tokenizer from scratch every run (~60s on CPU). By storing it in a bucket, we skip that entirely — zero compute wasted on repetitive setup work. Buckets are mutable, non-versioned storage ideal for intermediate artifacts like tokenizers, checkpoints, and logs.
 
 ## Running the agent
 
