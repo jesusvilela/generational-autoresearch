@@ -27,7 +27,6 @@ Usage (HF Jobs):
         --flavor a100-large \
         --timeout 10m \
         --namespace huggingface \
-        --secrets HF_TOKEN \
         -v hf://datasets/karpathy/climbmix-400b-shuffle:/data \
         -v hf://buckets/mishig/autoresearch-cache:/cache \
         train.py
