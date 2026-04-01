@@ -17,7 +17,6 @@ class Candidate:
     simplicity_score: float
     leverage_score: float
     robustness_score: float
-    important_axis_win: bool = False
     note: str = ""
 
 
@@ -43,16 +42,10 @@ def _utility(candidate: Candidate) -> tuple[float, float, float, float]:
 
 
 def ratify_exactly_one(candidates: Sequence[Candidate]) -> RatificationResult:
-    def _is_eligible(candidate: Candidate) -> bool:
-        metric_win = candidate.metric_value < candidate.baseline_metric
-        return candidate.executable and candidate.validated and (
-            metric_win or candidate.important_axis_win
-        )
-
     eligible = [
         c
         for c in candidates
-        if _is_eligible(c)
+        if c.executable and c.validated and (c.metric_value < c.baseline_metric)
     ]
 
     if not eligible:
@@ -70,7 +63,6 @@ def ratify_exactly_one(candidates: Sequence[Candidate]) -> RatificationResult:
 
     rationale = (
         "Winner selected by utility order: improvement, robustness, simplicity, leverage. "
-        "Eligibility requires executable + validated + (metric improvement OR important-axis win). "
         f"Picked {winner.candidate_id} ({winner.epic_type})."
     )
     return RatificationResult(winner=winner, rationale=rationale)

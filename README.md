@@ -6,39 +6,28 @@ Fork of [karpathy/autoresearch](https://github.com/karpathy/autoresearch), adapt
 
 ---
 
-## What this repo gives you
-
-- **Single-file training target**: `train.py` is the only model program you mutate.
-- **Agent operating contracts**:
-  - `program.md` (single-agent loop)
-  - `program_generational.md` (lineage + exactly-one-EPIC loop)
-- **Generational helpers**:
-  - `lineage.py` (registry + generation bootstrap)
-  - `swarm.py` (candidate planning)
-  - `ratify.py` (exactly-one winner gate)
-  - `generation.py` (one-command generation bootstrap + plan output)
-
----
+![Example val_bpb progress over time](https://huggingface.co/buckets/mishig/autoresearch-results/resolve/progress.png)
 
 ## Modes
 
-### 1) Single-agent mode (`program.md`)
+This repo supports two modes:
 
-```
-research -> edit train.py -> run HF Job -> score -> keep/discard
-```
+1. **Single-agent autoresearch (`program.md`)**
+   - Minimal baseline loop: research → edit `train.py` → run HF Job → score → keep/discard.
+2. **Generational autoresearch (`program_generational.md`)**
+   - Lineage loop: inherit → swarm exploration → ratify exactly one EPIC → compress memory → spawn next generation.
 
-Use this when you want fastest iteration and minimal ceremony.
+The original atomic unit stays unchanged: `train.py` + HF Jobs + `val_bpb`.
 
-### 2) Generational mode (`program_generational.md`)
+## Core files
 
-```
-inherit -> swarm explore -> ratify exactly one EPIC -> compress memory -> spawn next generation
-```
-
-Use this when you want bounded generations and cumulative lineage memory.
-
----
+- **`train.py`** — self-contained training script (model, optimizer, dataloader, evaluation).
+- **`program.md`** — single-agent operating constitution.
+- **`program_generational.md`** — generation contract + EPIC adoption rules.
+- **`lineage.py`** — lineage registry/state helpers.
+- **`swarm.py`** — role-based candidate planning for bounded generation search.
+- **`ratify.py`** — exactly-one-EPIC ratification gate.
+- **`lineage/registry.json`** — lineage index seed.
 
 ## Quick start
 
@@ -48,105 +37,125 @@ Use this when you want bounded generations and cumulative lineage memory.
 - CLI installed and authenticated.
 
 ```bash
-# Install CLI
+# 1) Install the HF CLI
 curl -LsSf https://hf.co/cli/install.sh | bash
 
-# Login
+# 2) Login
 hf auth login
 
-# Confirm identity
+# 3) Sanity check
 author=$(hf auth whoami | head -n1)
 echo "Running as: $author"
 ```
 
-### Required mounts
+## Demo workflows
 
-- Dataset mount (`/data`):
-  `hf://datasets/karpathy/climbmix-400b-shuffle:/data`
-- Bucket mount (`/cache`) for tokenizer/checkpoints/logs:
-  `hf://buckets/<your-username>/autoresearch-cache:/cache`
+### Workflow A — One baseline HF Job run
 
-`train.py` auto-detects `/data` and `/cache/tokenizer` when available.
-
----
-
-## Practical workflows (copy/paste)
-
-### Workflow A — Baseline run + metric extraction
-
-Use this first. It validates the environment and gives your baseline `val_bpb`.
+Use this to verify your environment and capture a baseline `val_bpb`:
 
 ```bash
 hf jobs uv run \
-  --flavor a100-large \
-  --timeout 10m \
-  --namespace <your-username> \
-  -v hf://datasets/karpathy/climbmix-400b-shuffle:/data \
-  -v hf://buckets/<your-username>/autoresearch-cache:/cache \
-  train.py 2>&1 | tee run.log
+    --flavor a100-large \
+    --timeout 10m \
+    --namespace <your-username> \
+    -v hf://datasets/karpathy/climbmix-400b-shuffle:/data \
+    -v hf://buckets/<your-username>/autoresearch-cache:/cache \
+    train.py 2>&1 | tee run.log
 
-# Pull the most recent validation score from logs
-grep '^val_bpb:' run.log | tail -n1
+grep "^val_bpb:" run.log
 ```
 
 ### Workflow B — Single-agent autonomous loop
 
-Prompt your coding agent:
+1. Ask your coding agent to read `program.md`.
+2. Let it run repeated experiments on HF Jobs.
+3. Keep only improvements and reset failed branches.
+
+Prompt:
 
 ```text
 Read program.md and run the autoresearch loop. Keep only changes that improve val_bpb.
 ```
 
-Recommended guardrails:
+### Workflow C — Generational EPIC loop (minimal skeleton)
 
-- Limit each run with `--timeout`.
-- Commit only if `val_bpb` improves.
-- Revert failed mutations quickly.
-
-### Workflow C — One generational cycle (simplest path)
+Create generation `g`, plan swarm candidates, and ratify exactly one winner.
 
 ```bash
-python generation.py start \
-  --objective "Beat inherited baseline val_bpb or emit a failure EPIC" \
-  --hypothesis "optimizer schedule retune for faster early gains" \
-  --hypothesis "attention efficiency mutation under same memory envelope" \
-  --hypothesis "simplify architecture while preserving quality" \
-  --budget-tokens 100 \
-  --max-candidates 4
+python - <<'PY'
+from lineage import load_registry, next_generation_index, bootstrap_generation
+from swarm import build_generation_plan
+
+registry = load_registry()
+g = next_generation_index(registry)
+bootstrap_generation(g, registry.current_seed_artifact)
+
+plan = build_generation_plan(
+    generation=g,
+    objective="Beat inherited baseline val_bpb or emit a failure EPIC",
+    hypotheses=[
+        "optimizer schedule retune for faster early gains",
+        "attention efficiency mutation under same memory envelope",
+        "simplify architecture while preserving quality",
+    ],
+    budget_tokens=100,
+)
+
+print(f"generation={plan.generation} candidates={len(plan.candidate_plans)}")
+PY
 ```
 
-Then:
-1. Run planned candidates on HF Jobs.
-2. Evaluate finalists against the inherited state.
-3. Use `ratify.py` to adopt **exactly one** EPIC.
-4. Record lineage delta for the next generation.
+Then execute candidates on HF Jobs, evaluate finalists, and gate adoption with `ratify.py`.
 
-Notes:
-- The planner deduplicates near-identical hypotheses.
-- Candidate count is budget-aware (`budget_tokens`) and can be hard-capped (`--max-candidates`).
+## Visual + video demos
 
----
+### Image demos
 
-## Usability notes and common pitfalls
+- 24-hour run progress chart:  
+  ![A100 24-hour run chart](https://huggingface.co/buckets/mishig/autoresearch-results/resolve/progress.png)
+- Hugging Face Jobs docs (screenshots + UI references):  
+  https://huggingface.co/docs/hub/jobs
 
-### 1) No `val_bpb` found in logs
+### Video demos
 
-- Confirm the job actually reached evaluation before timeout.
-- Increase timeout from `10m` to `20m` for slower flavors.
-- Verify dataset and cache mounts were attached correctly.
+- Hugging Face official video channel (Hub, Jobs, and workflows):  
+  https://www.youtube.com/@HuggingFace/videos
+- Hugging Face community events and walkthroughs:  
+  https://huggingface.co/events
 
-### 2) Reproducibility drift
-
-- Compare candidates against the **same baseline conditions**.
-- Re-run finalists once before adoption in generational mode.
-- Record exact command, flavor, and timeout with each result.
-
-### 3) Slow startup / missing tokenizer artifacts
-
-- Ensure bucket mount path is correct and writable.
-- Reuse `/cache` across runs to avoid repeated artifact rebuilds.
+`train.py` auto-detects `/data` and `/cache/tokenizer` when available.
 
 ---
+
+The tokenizer and other reusable artifacts live in an [HF Storage Bucket](https://huggingface.co/docs/hub/storage-buckets), mounted at `/cache`. Buckets are mutable, non-versioned storage ideal for intermediate artifacts like tokenizers, checkpoints, and logs.
+
+
+## Generational mode (lineage + swarm)
+
+In addition to the original single-loop harness (`program.md`), this repo now includes a generational extension:
+
+- **`program_generational.md`** — generation contract with exactly-one-EPIC ratification
+- **`lineage.py`** — lineage registry/state helpers
+- **`swarm.py`** — role-based candidate planning
+- **`ratify.py`** — hard gate that enforces one ratified EPIC
+- **`lineage/registry.json`** — append-only registry seed
+
+This keeps the original atomic unit (`train.py` + HF Jobs + `val_bpb`) while adding recursive inheritance across generations.
+
+### Workflow A — Baseline run + metric extraction
+
+Point Claude Code (or any coding agent) at the repo and say:
+
+```text
+Read program.md and kick off a new experiment branch.
+```
+
+Or for generational mode:
+
+```text
+Read program_generational.md and run one full generation. End only after ratifying exactly one EPIC.
+```
 
 ## Demos (image + video)
 
@@ -165,27 +174,7 @@ Notes:
 
 | Resource | Purpose |
 |---|---|
-| [`train.py`](./train.py) | Executable training target mutated by the agent |
-| [`program.md`](./program.md) | Single-agent operating constitution |
-| [`program_generational.md`](./program_generational.md) | Generational EPIC contract |
-| [`lineage.py`](./lineage.py) | Registry I/O and generation bootstrap |
-| [`swarm.py`](./swarm.py) | Candidate planning and role layout |
-| [`ratify.py`](./ratify.py) | Exactly-one-EPIC selection gate |
-| [`generation.py`](./generation.py) | CLI to bootstrap generation and write candidate plan |
-| [`lineage/registry.json`](./lineage/registry.json) | Current lineage head |
-
----
-
-## Suggested prompts
-
-Single-agent:
-
-```text
-Read program.md and kick off a new experiment branch.
-```
-
-Generational:
-
-```text
-Read program_generational.md and run one full generation. End only after ratifying exactly one EPIC.
-```
+| [`karpathy/climbmix-400b-shuffle`](https://huggingface.co/datasets/karpathy/climbmix-400b-shuffle) | Training dataset (mounted read-only at `/data`) |
+| [HF Storage Buckets](https://huggingface.co/docs/hub/storage-buckets) | Mutable artifact storage (`/cache`) |
+| [HF Jobs](https://huggingface.co/docs/hub/jobs) | Remote compute (A100, H200, etc.) |
+| [`hf papers`](https://huggingface.co/docs/huggingface_hub/main/en/guides/cli#search-papers) | Research paper search and reading |

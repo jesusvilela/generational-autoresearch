@@ -37,18 +37,12 @@ class LineageRegistry:
     generations: list[dict[str, Any]]
 
 
-def _new_registry() -> LineageRegistry:
-    """Return a fresh default registry instance.
-
-    A factory avoids sharing mutable defaults (like ``generations``) across
-    unrelated callers when loading from missing paths.
-    """
-    return LineageRegistry(
-        schema_version=1,
-        current_generation=-1,
-        current_seed_artifact="train.py",
-        generations=[],
-    )
+DEFAULT_REGISTRY = LineageRegistry(
+    schema_version=1,
+    current_generation=-1,
+    current_seed_artifact="train.py",
+    generations=[],
+)
 
 
 def _ensure_registry_path(path: Path = REGISTRY_PATH) -> None:
@@ -57,7 +51,7 @@ def _ensure_registry_path(path: Path = REGISTRY_PATH) -> None:
 
 def load_registry(path: Path = REGISTRY_PATH) -> LineageRegistry:
     if not path.exists():
-        return _new_registry()
+        return DEFAULT_REGISTRY
 
     payload = json.loads(path.read_text())
     return LineageRegistry(
