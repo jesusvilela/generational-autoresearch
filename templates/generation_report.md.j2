@@ -1,0 +1,23 @@
+# Generation {{ generation }} report
+
+## Objective
+{{ objective }}
+
+## Inputs
+- Inherited artifact: `{{ inherited_artifact }}`
+- Prior memory digest: {{ memory_digest }}
+- Budget: {{ budget }}
+
+## Candidate summary
+{% for candidate in candidates %}- {{ candidate.id }} ({{ candidate.role }}): {{ candidate.summary }}
+{% endfor %}
+
+## Ratification
+- EPIC selected: {{ epic_id }}
+- Type: {{ epic_type }}
+- Rationale: {{ rationale }}
+
+## Carry-forward delta
+```json
+{{ lineage_delta_json }}
+```
