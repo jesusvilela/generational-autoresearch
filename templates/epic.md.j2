@@ -1,0 +1,26 @@
+# EPIC: Generation {{ generation }}
+
+## Type
+{{ epic_type }}
+
+## Claim
+{{ claim }}
+
+## Evidence
+- Baseline metric: {{ baseline_metric }}
+- Candidate metric: {{ candidate_metric }}
+- Wins/Losses: {{ wins }}/{{ losses }}
+- Best delta: {{ best_delta }}
+
+## Adoption
+- Adopted artifact: `{{ adopted_artifact }}`
+- Irreversible rationale: {{ irreversible_rationale }}
+
+## Compounding guidance
+- Do more of:
+{% for item in do_more_of %}- {{ item }}
+{% endfor %}
+- Avoid:
+{% for item in avoid %}- {{ item }}
+{% endfor %}
+- Open question: {{ open_question }}
