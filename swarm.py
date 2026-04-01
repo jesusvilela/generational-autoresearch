@@ -40,10 +40,13 @@ def build_generation_plan(
     objective: str,
     hypotheses: Iterable[str],
     budget_tokens: int,
+    max_candidates: int | None = None,
 ) -> GenerationPlan:
     hypotheses_list = [h.strip() for h in hypotheses if h.strip()]
     if not hypotheses_list:
         raise ValueError("At least one hypothesis is required.")
+    if max_candidates is not None:
+        hypotheses_list = hypotheses_list[:max_candidates]
 
     candidate_plans: list[CandidatePlan] = []
     for i, hypothesis in enumerate(hypotheses_list):
