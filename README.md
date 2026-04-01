@@ -1,43 +1,74 @@
-# Generational Autoresearch
+<h1 align="center">Generational Autoresearch</h1>
 
-Autonomous LLM pretraining research running on [Hugging Face Jobs](https://huggingface.co/docs/hub/jobs). The harness runs in discrete **generations**: each inherits a proven artifact, explores a bounded set of experiments, and must ratify exactly one **EPIC** outcome before advancing to the next generation.
+<p align="center">
+  Autonomous LLM pretraining research on Hugging Face infrastructure.<br>
+  Each generation inherits a proven model, explores bounded experiments, and ratifies exactly one compounding improvement.
+</p>
 
-> Fork of [karpathy/autoresearch](https://github.com/karpathy/autoresearch), extended with generational lineage, swarm exploration, and ratification.
+<p align="center">
+  <a href="https://huggingface.co/docs/hub/jobs"><img src="https://img.shields.io/badge/runs%20on-HF%20Jobs-FFD21E?logo=huggingface&logoColor=black" alt="HF Jobs"></a>
+  <img src="https://img.shields.io/badge/metric-val__bpb-4A90D9" alt="metric: val_bpb">
+  <img src="https://img.shields.io/badge/GPU-A100%20%7C%20H200-76B900?logo=nvidia&logoColor=white" alt="GPU">
+  <img src="https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python 3.10+">
+</p>
 
 ---
 
-![val_bpb progress over 24 hours](https://huggingface.co/buckets/mishig/autoresearch-results/resolve/progress.png)
+<p align="center">
+  <img src="https://huggingface.co/buckets/mishig/autoresearch-results/resolve/progress.png" alt="val_bpb progress over 24 hours" width="720">
+</p>
 
 ---
 
 ## How it works
 
-Each generation is a bounded research cycle with a hard output contract:
+Each run is structured as a sequence of **generations**. A generation is a bounded research cycle with a hard output contract — it cannot end without producing one ratified outcome.
 
-1. **Inherit** — load the best artifact and compressed lineage memory from the previous generation
-2. **Explore** — a swarm of role-based agents proposes and runs candidate experiments on HF Jobs
-3. **Ratify** — exactly one candidate is adopted as the EPIC (Executable, Proven, Irreversible, Compounding) outcome
-4. **Advance** — the adopted artifact and updated lineage become the seed for the next generation
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         Generation  g                               │
+│                                                                     │
+│   Inherit              Explore                Ratify   Advance      │
+│  ─────────         ─────────────────         ───────  ─────────     │
+│  train.py   ──▶   outer-ring swarm    ──▶   one EPIC  ──▶  g+1     │
+│  registry          runs HF Jobs              adopted               │
+│                    scores candidates                                │
+└─────────────────────────────────────────────────────────────────────┘
+```
 
-The only file you edit is `train.py`. The only metric that matters is `val_bpb` (bits per byte on the validation set). Lower is better.
+**EPIC** is the adoption standard. A candidate must be all four:
+
+| Letter | Meaning |
+|:---:|---|
+| **E** | Executable — runnable artifact or operationally usable process |
+| **P** | Proven — validated on the declared eval (`val_bpb`) |
+| **I** | Irreversible — adopted into lineage state, not tentative |
+| **C** | Compounding — increases future search or build capability |
+
+The only file you edit is `train.py`. The only metric that matters is `val_bpb` (bits per byte, lower is better, 5-minute time budget).
 
 ---
 
 ## Repository layout
 
 ```
-train.py                    Self-contained training script (edit this)
-generation.py               CLI: start / ratify / record
-lineage.py                  Lineage registry and generation state helpers
-swarm.py                    Role-based candidate planning
-ratify.py                   Exactly-one-EPIC ratification gate
-program.md                  Full operating constitution for the AI agent
-lineage/
-  registry.json             Append-only lineage index
-templates/
-  epic.md.j2                Canonical EPIC record template
-  generation_report.md.j2   Generation summary template
-results.tsv                 Experiment log (untracked by git)
+generational-autoresearch/
+│
+├── train.py                     ← the only file you edit
+├── generation.py                ← CLI: start · ratify · record
+├── lineage.py                   ← registry and generation state helpers
+├── swarm.py                     ← role-based candidate planning
+├── ratify.py                    ← exactly-one-EPIC ratification gate
+├── program.md                   ← operating constitution for the AI agent
+│
+├── lineage/
+│   └── registry.json            ← append-only lineage index
+│
+├── templates/
+│   ├── epic.md.j2               ← canonical EPIC record template
+│   └── generation_report.md.j2  ← generation summary template
+│
+└── results.tsv                  ← experiment log (untracked by git)
 ```
 
 ---
@@ -48,7 +79,7 @@ results.tsv                 Experiment log (untracked by git)
 - The `hf` CLI installed and authenticated
 
 ```bash
-# Install the HF CLI
+# Install
 curl -LsSf https://hf.co/cli/install.sh | bash
 
 # Authenticate
@@ -63,14 +94,14 @@ hf auth whoami
 ## Setup
 
 ```bash
-# 1. Clone the repo
+# 1. Clone
 git clone https://github.com/jesusvilela/generational-autoresearch
 cd generational-autoresearch
 
-# 2. Create an experiment branch (use today's date as the tag)
+# 2. Create an experiment branch  (tag = today's date)
 git checkout -b autoresearch/apr01
 
-# 3. Create a results bucket (one-time, replace <username>)
+# 3. Create a results bucket  (one-time per account)
 hf buckets create <username>/autoresearch-results
 
 # 4. Initialize the experiment log
@@ -79,27 +110,28 @@ printf 'commit\tval_bpb\tmemory_gb\tstatus\tpaper\tdescription\n' > results.tsv
 
 ---
 
-## Running an experiment on HF Jobs
+## Running a candidate on HF Jobs
 
-Every candidate experiment runs the same command. The script auto-detects the mounted volumes:
+Every experiment runs the same command. `train.py` auto-detects the mounted volumes:
 
 ```bash
 hf jobs uv run \
-    --flavor a100-large \
-    --timeout 10m \
+    --flavor   a100-large \
+    --timeout  10m \
     --namespace <your-username> \
     -v hf://datasets/karpathy/climbmix-400b-shuffle:/data \
     -v hf://buckets/<your-username>/autoresearch-cache:/cache \
     train.py 2>&1 | tee run.log
 ```
 
-Extract the result:
+Extract the key metric:
 
 ```bash
 grep "^val_bpb:" run.log
 ```
 
-Full output format:
+<details>
+<summary>Full output format</summary>
 
 ```
 ---
@@ -114,15 +146,19 @@ num_params_M:     50.3
 depth:            8
 ```
 
+</details>
+
 ---
 
 ## Generation CLI
 
-Three commands drive one complete generation.
+Three verbs drive one complete generation: **start → ratify → record**.
+
+---
 
 ### `start` — bootstrap a generation workspace
 
-Creates the generation directory, writes `genesis.md` with the objective, and builds `candidates/plan.json` with the swarm candidate list.
+Creates the generation directory, writes `genesis.md`, and builds `candidates/plan.json`.
 
 ```bash
 python generation.py start \
@@ -133,14 +169,13 @@ python generation.py start \
   --budget-tokens 100
 ```
 
-Optional flags:
-
 | Flag | Default | Description |
 |---|---|---|
-| `--max-candidates N` | unlimited | Hard cap on number of candidates to plan |
-| `--registry-path PATH` | `lineage/registry.json` | Path to the lineage registry |
-
-Output:
+| `--objective TEXT` | required | Generation objective |
+| `--hypothesis TEXT` | required (repeat) | One candidate hypothesis per flag |
+| `--budget-tokens N` | `100` | Planning token budget |
+| `--max-candidates N` | unlimited | Hard cap on planned candidates |
+| `--registry-path PATH` | `lineage/registry.json` | Lineage registry location |
 
 ```
 generation=0
@@ -153,47 +188,50 @@ candidates=3
 
 ### `ratify` — select exactly one EPIC winner
 
-After running all candidate experiments and recording their results, write an `evaluated.json` file — a JSON array of evaluated candidates — then run ratification:
+After running all candidates and scoring them, write `evaluated.json` — a JSON array of evaluated candidate objects — then run ratification:
 
 ```bash
 python generation.py ratify \
   --candidates lineage/gen_000/candidates/evaluated.json
 ```
 
-The `evaluated.json` format (one object per candidate):
+**`evaluated.json` schema:**
 
 ```json
 [
   {
-    "candidate_id": "cand_000",
-    "epic_type": "code_change",
-    "metric_value": 0.9921,
+    "candidate_id":    "cand_000",
+    "epic_type":       "code_change",
+    "metric_value":    0.9921,
     "baseline_metric": 0.9979,
-    "executable": true,
-    "validated": true,
-    "simplicity_score": 0.8,
-    "leverage_score": 0.7,
-    "robustness_score": 0.9,
-    "note": "RoPE: clean swap, no regressions"
+    "executable":      true,
+    "validated":       true,
+    "simplicity_score":  0.8,
+    "leverage_score":    0.7,
+    "robustness_score":  0.9,
+    "note": "RoPE: clean swap, no regressions on two reruns"
   },
   {
-    "candidate_id": "cand_001",
-    "epic_type": "code_change",
-    "metric_value": 0.9985,
+    "candidate_id":    "cand_001",
+    "epic_type":       "code_change",
+    "metric_value":    0.9985,
     "baseline_metric": 0.9979,
-    "executable": true,
-    "validated": true,
-    "simplicity_score": 0.9,
-    "leverage_score": 0.5,
-    "robustness_score": 0.7,
-    "note": "No PE: worse than baseline"
+    "executable":      true,
+    "validated":       true,
+    "simplicity_score":  0.9,
+    "leverage_score":    0.5,
+    "robustness_score":  0.7,
+    "note": "No PE: regressed vs baseline"
   }
 ]
 ```
 
-Candidates are ranked by: improvement magnitude → robustness → simplicity → future leverage. The winner is written to `lineage/gen_000/epic/winner.json`. If no candidate strictly improves on the baseline, ratification fails — emit a failure EPIC via `record` instead.
+Ranking order: **improvement → robustness → simplicity → leverage**. The winner is written to `lineage/gen_000/epic/winner.json`. If no candidate strictly beats the baseline, ratification raises an error — produce a failure EPIC via `record` instead.
 
-Output:
+| Flag | Default | Description |
+|---|---|---|
+| `--candidates PATH` | required | JSON array of evaluated candidates |
+| `--registry-path PATH` | `lineage/registry.json` | Lineage registry location |
 
 ```
 winner=cand_000
@@ -210,25 +248,23 @@ Reads `winner.json` and appends the generation record to `lineage/registry.json`
 
 ```bash
 python generation.py record \
-  --claim "RoPE replaces learned absolute PE: -0.0058 val_bpb, -200 params, cleaner code" \
-  --artifact train.py \
-  --do-more "positional encoding ablations" \
-  --do-more "RoPE hyperparameter sweep" \
-  --avoid "learned absolute positional embeddings" \
-  --open-question "Does RoPE scaling help beyond 2048 context?"
+  --claim         "RoPE replaces learned absolute PE: −0.0058 val_bpb, −200 params, cleaner code" \
+  --artifact      train.py \
+  --do-more       "positional encoding ablations" \
+  --do-more       "RoPE hyperparameter sweep (base frequency)" \
+  --avoid         "learned absolute positional embeddings" \
+  --open-question "Does RoPE frequency scaling help beyond 2048 context?"
 ```
-
-Optional flags:
 
 | Flag | Default | Description |
 |---|---|---|
+| `--claim TEXT` | required | One-sentence description of what changed |
+| `--artifact PATH` | `train.py` | Adopted artifact |
 | `--winner PATH` | auto-detected | Path to `winner.json` (defaults to current generation's epic dir) |
 | `--do-more TEXT` | — | Guidance for future generations (repeat for multiple) |
-| `--avoid TEXT` | — | Anti-patterns to avoid (repeat for multiple) |
-| `--open-question TEXT` | — | Open research question to carry forward |
-| `--registry-path PATH` | `lineage/registry.json` | Path to the lineage registry |
-
-Output:
+| `--avoid TEXT` | — | Anti-patterns to carry forward (repeat for multiple) |
+| `--open-question TEXT` | — | Open research question |
+| `--registry-path PATH` | `lineage/registry.json` | Lineage registry location |
 
 ```
 generation=0
@@ -241,50 +277,49 @@ artifact=train.py
 ## Full generation walkthrough
 
 ```bash
-# ── 1. Start generation 0 ──────────────────────────────────────────────────
+# ── 1. Bootstrap ───────────────────────────────────────────────────────────
 python generation.py start \
-  --objective "Establish baseline and explore positional encoding alternatives" \
-  --hypothesis "Baseline: run train.py unmodified" \
-  --hypothesis "RoPE instead of learned absolute PE" \
-  --hypothesis "Muon optimizer instead of Adam"
+  --objective "Explore positional encoding alternatives on top of baseline" \
+  --hypothesis "Baseline: train.py unmodified" \
+  --hypothesis "RoPE in place of learned absolute PE" \
+  --hypothesis "Muon optimizer in place of AdamW"
 
-# ── 2. Run each candidate on HF Jobs ──────────────────────────────────────
-# (repeat for each hypothesis, saving logs as run_000.log, run_001.log, etc.)
+# ── 2. Run candidates on HF Jobs ───────────────────────────────────────────
+# Repeat for each hypothesis; save each log as run_000.log, run_001.log, …
 hf jobs uv run \
-    --flavor a100-large \
-    --timeout 10m \
+    --flavor a100-large --timeout 10m \
     --namespace <your-username> \
     -v hf://datasets/karpathy/climbmix-400b-shuffle:/data \
     -v hf://buckets/<your-username>/autoresearch-cache:/cache \
     train.py 2>&1 | tee run_001.log
 
-# ── 3. Log results to results.tsv ─────────────────────────────────────────
-# (tab-separated; do not commit this file)
+# ── 3. Append to results.tsv ───────────────────────────────────────────────
 # commit   val_bpb    memory_gb  status  paper       description
 # a1b2c3d  0.997900   44.0       keep    -           baseline
 # b2c3d4e  0.992100   44.1       keep    2503.08234  RoPE positional encoding
 # c3d4e5f  0.998800   44.3       discard -           Muon: no improvement
 
-# ── 4. Write evaluated.json and ratify ────────────────────────────────────
+# ── 4. Ratify ──────────────────────────────────────────────────────────────
+# Write lineage/gen_000/candidates/evaluated.json first, then:
 python generation.py ratify \
   --candidates lineage/gen_000/candidates/evaluated.json
 
-# ── 5. Commit and save best files ─────────────────────────────────────────
+# ── 5. Commit + save to bucket ─────────────────────────────────────────────
 git add train.py && git commit -m "gen_000: RoPE positional encoding"
 
 hf buckets cp train.py    hf://buckets/<your-username>/autoresearch-results/best_train.py
 hf buckets cp results.tsv hf://buckets/<your-username>/autoresearch-results/results.tsv
 
-# ── 6. Record EPIC to lineage ─────────────────────────────────────────────
+# ── 6. Record EPIC ─────────────────────────────────────────────────────────
 python generation.py record \
-  --claim "RoPE replaces learned PE: -0.0058 val_bpb with simpler code" \
+  --claim    "RoPE replaces learned PE: −0.0058 val_bpb with simpler code" \
   --artifact train.py \
-  --do-more "RoPE scaling experiments" \
-  --avoid "learned absolute positional embeddings"
+  --do-more  "RoPE scaling experiments" \
+  --avoid    "learned absolute positional embeddings"
 
-# ── 7. Advance to generation 1 ────────────────────────────────────────────
+# ── 7. Advance ─────────────────────────────────────────────────────────────
 python generation.py start \
-  --objective "Build on RoPE: explore attention and optimizer changes" \
+  --objective "Build on RoPE — explore attention and optimizer changes" \
   --hypothesis "..."
 ```
 
@@ -292,93 +327,101 @@ python generation.py start \
 
 ## Logging results
 
-`results.tsv` is tab-separated (not comma-separated). **Do not commit it.**
+`results.tsv` is **tab-separated** (commas break descriptions). Do not commit it.
 
 ```
-commit	val_bpb	memory_gb	status	paper	description
-a1b2c3d	0.997900	44.0	keep	-	baseline
-b2c3d4e	0.992100	44.1	keep	2503.08234	RoPE positional encoding
-c3d4e5f	0.998800	44.3	discard	-	Muon optimizer, no improvement
-d4e5f6g	0.000000	0.0	crash	-	doubled width, OOM
+commit   val_bpb   memory_gb   status   paper        description
+a1b2c3d  0.997900  44.0        keep     -            baseline
+b2c3d4e  0.992100  44.1        keep     2503.08234   RoPE positional encoding
+c3d4e5f  0.998800  44.3        discard  -            Muon: no improvement
+d4e5f6g  0.000000  0.0         crash    -            doubled width, OOM
 ```
-
-Column reference:
 
 | Column | Description |
 |---|---|
 | `commit` | 7-character git hash |
 | `val_bpb` | Validation bits-per-byte (0.000000 for crashes) |
-| `memory_gb` | `peak_vram_mb / 1024`, rounded to one decimal (0.0 for crashes) |
-| `status` | `keep`, `discard`, or `crash` |
-| `paper` | Paper ID that inspired the change, or `-` |
-| `description` | Short description of the experiment |
+| `memory_gb` | `peak_vram_mb ÷ 1024`, one decimal (0.0 for crashes) |
+| `status` | `keep` · `discard` · `crash` |
+| `paper` | arXiv paper ID or `-` |
+| `description` | Short description |
 
 ---
 
 ## Research with `hf papers`
 
-Before each experiment, search for relevant techniques:
+Search for techniques before each experiment. Skim — you need one concrete implementable idea, not a full read.
 
 ```bash
-# Search by topic
+# Keyword search
 hf papers search "efficient transformer training"
 hf papers search "rotary positional encoding"
-hf papers search "optimizer pretraining"
-hf papers search "small language model architecture"
+hf papers search "optimizer small language model"
 
-# Read a paper in full
+# Read a promising paper
 hf papers read 2104.09864
 ```
 
-Log the paper ID in `results.tsv` when a paper directly inspires an experiment.
+Log the paper ID in `results.tsv` whenever a paper directly inspires an experiment.
 
 ---
 
-## Rules and constraints
+## Rules
 
-**You can change:**
-- Model architecture (layers, heads, width, attention variants)
+<table>
+<tr>
+<td valign="top" width="50%">
+
+**Can change**
+- Model architecture (depth, width, heads, attention variants)
 - Optimizer and learning rate schedule
-- Batch size and sequence handling
+- Batch size and gradient accumulation
 - Any part of the training loop
 
-**You cannot change:**
-- `evaluate_bpb` — this is the ground truth metric
-- The dataloader, tokenizer, or constants (`MAX_SEQ_LEN`, `TIME_BUDGET`, `EVAL_TOKENS`)
+</td>
+<td valign="top" width="50%">
+
+**Cannot change**
+- `evaluate_bpb` — ground truth metric
+- Dataloader, tokenizer, or constants (`MAX_SEQ_LEN`, `TIME_BUDGET`, `EVAL_TOKENS`)
 - Dependencies beyond the inline UV metadata
 
-**Simplicity criterion:** a marginal improvement that adds complex code is not worth it. Equal results with simpler code is a win. Removing code and keeping quality is the best outcome.
+</td>
+</tr>
+</table>
 
-**VRAM:** soft constraint. Meaningful gains justify modest increases; significant blowups do not.
+**Simplicity criterion** — a marginal gain that adds complex code is not worth it. Equal results with less code is a win. Deleting code while keeping quality is the best outcome.
+
+**VRAM** — soft constraint. Meaningful gains justify modest increases; blowups do not.
 
 ---
 
 ## Failure semantics
 
-If no candidate improves the baseline, the generation still produces a failure EPIC:
+A generation that cannot improve still produces a **failure EPIC** — first-class lineage assets:
 
-- A negative-result codex (what definitely does not work)
-- A pruning rule to avoid repeated waste in future generations
-- A bug or failure taxonomy
-- An evaluator improvement that prevents the same crash
+- Negative-result codex (what definitely does not work)
+- Pruning rule to avoid the same waste in future generations
+- Bug or failure taxonomy
+- Evaluator improvement that prevents a repeated crash
 
-Record it the same way: `python generation.py record --claim "..."`. Failure EPICs are first-class lineage assets.
+Record it the same way: `python generation.py record --claim "..."`.
 
 ---
 
-## Resource index
+## Resources
 
-| Resource | Purpose |
-|---|---|
-| [`karpathy/climbmix-400b-shuffle`](https://huggingface.co/datasets/karpathy/climbmix-400b-shuffle) | Training dataset, mounted read-only at `/data` |
-| [HF Storage Buckets](https://huggingface.co/docs/hub/storage-buckets) | Mutable artifact storage, mounted at `/cache` |
-| [HF Jobs](https://huggingface.co/docs/hub/jobs) | Remote GPU compute (A100, H200, etc.) |
-| [`hf papers`](https://huggingface.co/docs/huggingface_hub/main/en/guides/cli#search-papers) | Research paper search and reading |
+| | Resource | Purpose |
+|:---:|---|---|
+| ![HF](https://img.shields.io/badge/-Dataset-FFD21E?logo=huggingface&logoColor=black) | [`karpathy/climbmix-400b-shuffle`](https://huggingface.co/datasets/karpathy/climbmix-400b-shuffle) | Training data, mounted read-only at `/data` |
+| ![HF](https://img.shields.io/badge/-Buckets-FFD21E?logo=huggingface&logoColor=black) | [HF Storage Buckets](https://huggingface.co/docs/hub/storage-buckets) | Mutable artifact storage, mounted at `/cache` |
+| ![HF](https://img.shields.io/badge/-Jobs-FFD21E?logo=huggingface&logoColor=black) | [HF Jobs](https://huggingface.co/docs/hub/jobs) | Remote GPU compute (A100, H200, …) |
+| ![HF](https://img.shields.io/badge/-Papers-FFD21E?logo=huggingface&logoColor=black) | [`hf papers`](https://huggingface.co/docs/huggingface_hub/main/en/guides/cli#search-papers) | Research paper search and reading |
 
 ---
 
 ## Experiment results
 
-| generation | commit | val_bpb | description |
-|---|---|---|---|
-| — | — | — | No runs yet |
+| Generation | Commit | `val_bpb` | Description |
+|:---:|:---:|:---:|---|
+| — | — | — | No runs yet — be the first |
