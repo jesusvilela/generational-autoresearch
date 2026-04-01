@@ -1,10 +1,10 @@
 # autoresearch on Hugging Face
 
-Autonomous LLM pretraining research running entirely on [Hugging Face infrastructure](https://huggingface.co/docs/hub/jobs). An AI agent iterates on a training script — modifying architecture, optimizer, hyperparameters — while reading recent papers via [`hf papers`](https://huggingface.co/docs/huggingface_hub/main/en/guides/cli#search-papers) for ideas. No local GPU needed. You only need a Hugging Face account.
+Autonomous LLM pretraining research running entirely on [Hugging Face Jobs](https://huggingface.co/docs/hub/jobs). The harness keeps the atomic loop simple: modify one executable (`train.py`), run it remotely, measure one metric (`val_bpb`), and keep/discard changes.
 
-Fork of [karpathy/autoresearch](https://github.com/karpathy/autoresearch), adapted to run on HF Jobs with mounted datasets and storage buckets.
+Fork of [karpathy/autoresearch](https://github.com/karpathy/autoresearch), adapted for HF Jobs + mounted datasets + storage buckets.
 
-*See an [example 24-hour run on A100](https://huggingface.co/buckets/mishig/autoresearch-results) — experiment artifacts including results, best models, and the full agent chat transcript are all saved to the bucket.*
+---
 
 ![Example val_bpb progress over time](https://huggingface.co/buckets/mishig/autoresearch-results/resolve/progress.png)
 
@@ -30,6 +30,11 @@ The original atomic unit stays unchanged: `train.py` + HF Jobs + `val_bpb`.
 - **`lineage/registry.json`** — lineage index seed.
 
 ## Quick start
+
+### Prerequisites
+
+- A Hugging Face account with Jobs access.
+- CLI installed and authenticated.
 
 ```bash
 # 1) Install the HF CLI
@@ -119,9 +124,9 @@ Then execute candidates on HF Jobs, evaluate finalists, and gate adoption with `
 - Hugging Face community events and walkthroughs:  
   https://huggingface.co/events
 
-## Zero overhead with mounted volumes
+`train.py` auto-detects `/data` and `/cache/tokenizer` when available.
 
-The `-v` flags above use [HF volume mounts](https://github.com/huggingface/hf-mount) to make remote data appear as local files inside the job. The training script reads parquet shards from `/data` as if the entire [karpathy/climbmix-400b-shuffle](https://huggingface.co/datasets/karpathy/climbmix-400b-shuffle) dataset (6,543 shards) was already on disk — no bulk download, no waiting. Files are fetched lazily on access.
+---
 
 The tokenizer and other reusable artifacts live in an [HF Storage Bucket](https://huggingface.co/docs/hub/storage-buckets), mounted at `/cache`. Buckets are mutable, non-versioned storage ideal for intermediate artifacts like tokenizers, checkpoints, and logs.
 
@@ -138,7 +143,7 @@ In addition to the original single-loop harness (`program.md`), this repo now in
 
 This keeps the original atomic unit (`train.py` + HF Jobs + `val_bpb`) while adding recursive inheritance across generations.
 
-## Running the agent
+### Workflow A — Baseline run + metric extraction
 
 Point Claude Code (or any coding agent) at the repo and say:
 
@@ -152,7 +157,20 @@ Or for generational mode:
 Read program_generational.md and run one full generation. End only after ratifying exactly one EPIC.
 ```
 
-## What's on HF
+## Demos (image + video)
+
+- Example 24-hour artifact bucket:  
+  https://huggingface.co/buckets/mishig/autoresearch-results
+- Progress image:  
+  ![Example val_bpb progress over time](https://huggingface.co/buckets/mishig/autoresearch-results/resolve/progress.png)
+- HF Jobs docs (UI and usage):  
+  https://huggingface.co/docs/hub/jobs
+- Hugging Face videos:  
+  https://www.youtube.com/@HuggingFace/videos
+
+---
+
+## Resource index
 
 | Resource | Purpose |
 |---|---|
