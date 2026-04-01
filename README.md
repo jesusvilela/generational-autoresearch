@@ -16,6 +16,7 @@ Fork of [karpathy/autoresearch](https://github.com/karpathy/autoresearch), adapt
   - `lineage.py` (registry + generation bootstrap)
   - `swarm.py` (candidate planning)
   - `ratify.py` (exactly-one winner gate)
+  - `generation.py` (one-command generation bootstrap + plan output)
 
 ---
 
@@ -102,31 +103,16 @@ Recommended guardrails:
 - Commit only if `val_bpb` improves.
 - Revert failed mutations quickly.
 
-### Workflow C — One generational cycle (skeleton)
+### Workflow C — One generational cycle (simplest path)
 
 ```bash
-python - <<'PY'
-from lineage import load_registry, next_generation_index, bootstrap_generation
-from swarm import build_generation_plan
-
-registry = load_registry()
-g = next_generation_index(registry)
-root = bootstrap_generation(g, registry.current_seed_artifact)
-
-plan = build_generation_plan(
-    generation=g,
-    objective='Beat inherited baseline val_bpb or emit a failure EPIC',
-    hypotheses=[
-        'optimizer schedule retune for faster early gains',
-        'attention efficiency mutation under same memory envelope',
-        'simplify architecture while preserving quality',
-    ],
-    budget_tokens=100,
-)
-
-print(f'bootstrapped={root}')
-print(f'generation={plan.generation} candidates={len(plan.candidate_plans)}')
-PY
+python generation.py start \
+  --objective "Beat inherited baseline val_bpb or emit a failure EPIC" \
+  --hypothesis "optimizer schedule retune for faster early gains" \
+  --hypothesis "attention efficiency mutation under same memory envelope" \
+  --hypothesis "simplify architecture while preserving quality" \
+  --budget-tokens 100 \
+  --max-candidates 4
 ```
 
 Then:
@@ -134,6 +120,10 @@ Then:
 2. Evaluate finalists against the inherited state.
 3. Use `ratify.py` to adopt **exactly one** EPIC.
 4. Record lineage delta for the next generation.
+
+Notes:
+- The planner deduplicates near-identical hypotheses.
+- Candidate count is budget-aware (`budget_tokens`) and can be hard-capped (`--max-candidates`).
 
 ---
 
@@ -181,6 +171,7 @@ Then:
 | [`lineage.py`](./lineage.py) | Registry I/O and generation bootstrap |
 | [`swarm.py`](./swarm.py) | Candidate planning and role layout |
 | [`ratify.py`](./ratify.py) | Exactly-one-EPIC selection gate |
+| [`generation.py`](./generation.py) | CLI to bootstrap generation and write candidate plan |
 | [`lineage/registry.json`](./lineage/registry.json) | Current lineage head |
 
 ---
