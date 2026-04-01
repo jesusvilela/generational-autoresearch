@@ -1,81 +1,108 @@
 # autoresearch on Hugging Face
 
-Autonomous LLM pretraining research running entirely on [Hugging Face infrastructure](https://huggingface.co/docs/hub/jobs). An AI agent iterates on a training script — modifying architecture, optimizer, hyperparameters — while reading recent papers via [`hf papers`](https://huggingface.co/docs/huggingface_hub/main/en/guides/cli#search-papers) for ideas. No local GPU needed. You only need a Hugging Face account.
+Autonomous LLM pretraining research running entirely on [Hugging Face Jobs](https://huggingface.co/docs/hub/jobs). The harness keeps the atomic loop simple: modify one executable (`train.py`), run it remotely, measure one metric (`val_bpb`), and keep/discard changes.
 
-Fork of [karpathy/autoresearch](https://github.com/karpathy/autoresearch), adapted to run on HF Jobs with mounted datasets and storage buckets.
+Fork of [karpathy/autoresearch](https://github.com/karpathy/autoresearch), adapted for HF Jobs + mounted datasets + storage buckets.
 
-*See an [example 24-hour run on A100](https://huggingface.co/buckets/mishig/autoresearch-results) — experiment artifacts including results, best models, and the full agent chat transcript are all saved to the bucket.*
+---
 
-![Example val_bpb progress over time](https://huggingface.co/buckets/mishig/autoresearch-results/resolve/progress.png)
+## What this repo gives you
+
+- **Single-file training target**: `train.py` is the only model program you mutate.
+- **Agent operating contracts**:
+  - `program.md` (single-agent loop)
+  - `program_generational.md` (lineage + exactly-one-EPIC loop)
+- **Generational helpers**:
+  - `lineage.py` (registry + generation bootstrap)
+  - `swarm.py` (candidate planning)
+  - `ratify.py` (exactly-one winner gate)
+
+---
 
 ## Modes
 
-This repo supports two modes:
+### 1) Single-agent mode (`program.md`)
 
-1. **Single-agent autoresearch (`program.md`)**
-   - Minimal baseline loop: research → edit `train.py` → run HF Job → score → keep/discard.
-2. **Generational autoresearch (`program_generational.md`)**
-   - Lineage loop: inherit → swarm exploration → ratify exactly one EPIC → compress memory → spawn next generation.
+```
+research -> edit train.py -> run HF Job -> score -> keep/discard
+```
 
-The original atomic unit stays unchanged: `train.py` + HF Jobs + `val_bpb`.
+Use this when you want fastest iteration and minimal ceremony.
 
-## Core files
+### 2) Generational mode (`program_generational.md`)
 
-- **`train.py`** — self-contained training script (model, optimizer, dataloader, evaluation).
-- **`program.md`** — single-agent operating constitution.
-- **`program_generational.md`** — generation contract + EPIC adoption rules.
-- **`lineage.py`** — lineage registry/state helpers.
-- **`swarm.py`** — role-based candidate planning for bounded generation search.
-- **`ratify.py`** — exactly-one-EPIC ratification gate.
-- **`lineage/registry.json`** — lineage index seed.
+```
+inherit -> swarm explore -> ratify exactly one EPIC -> compress memory -> spawn next generation
+```
+
+Use this when you want bounded generations and cumulative lineage memory.
+
+---
 
 ## Quick start
 
+### Prerequisites
+
+- A Hugging Face account with Jobs access.
+- CLI installed and authenticated.
+
 ```bash
-# 1) Install the HF CLI
+# Install CLI
 curl -LsSf https://hf.co/cli/install.sh | bash
 
-# 2) Login
+# Login
 hf auth login
 
-# 3) Sanity check
+# Confirm identity
 author=$(hf auth whoami | head -n1)
 echo "Running as: $author"
 ```
 
-## Demo workflows
+### Required mounts
 
-### Workflow A — One baseline HF Job run
+- Dataset mount (`/data`):
+  `hf://datasets/karpathy/climbmix-400b-shuffle:/data`
+- Bucket mount (`/cache`) for tokenizer/checkpoints/logs:
+  `hf://buckets/<your-username>/autoresearch-cache:/cache`
 
-Use this to verify your environment and capture a baseline `val_bpb`:
+`train.py` auto-detects `/data` and `/cache/tokenizer` when available.
+
+---
+
+## Practical workflows (copy/paste)
+
+### Workflow A — Baseline run + metric extraction
+
+Use this first. It validates the environment and gives your baseline `val_bpb`.
 
 ```bash
 hf jobs uv run \
-    --flavor a100-large \
-    --timeout 10m \
-    --namespace <your-username> \
-    -v hf://datasets/karpathy/climbmix-400b-shuffle:/data \
-    -v hf://buckets/<your-username>/autoresearch-cache:/cache \
-    train.py 2>&1 | tee run.log
+  --flavor a100-large \
+  --timeout 10m \
+  --namespace <your-username> \
+  -v hf://datasets/karpathy/climbmix-400b-shuffle:/data \
+  -v hf://buckets/<your-username>/autoresearch-cache:/cache \
+  train.py 2>&1 | tee run.log
 
-grep "^val_bpb:" run.log
+# Pull the most recent validation score from logs
+grep '^val_bpb:' run.log | tail -n1
 ```
 
 ### Workflow B — Single-agent autonomous loop
 
-1. Ask your coding agent to read `program.md`.
-2. Let it run repeated experiments on HF Jobs.
-3. Keep only improvements and reset failed branches.
-
-Prompt:
+Prompt your coding agent:
 
 ```text
 Read program.md and run the autoresearch loop. Keep only changes that improve val_bpb.
 ```
 
-### Workflow C — Generational EPIC loop (minimal skeleton)
+Recommended guardrails:
 
-Create generation `g`, plan swarm candidates, and ratify exactly one winner.
+- Limit each run with `--timeout`.
+- Commit only if `val_bpb` improves.
+- Revert failed mutations quickly.
+
+### Workflow C — One generational cycle (skeleton)
 
 ```bash
 python - <<'PY'
@@ -84,66 +111,90 @@ from swarm import build_generation_plan
 
 registry = load_registry()
 g = next_generation_index(registry)
-bootstrap_generation(g, registry.current_seed_artifact)
+root = bootstrap_generation(g, registry.current_seed_artifact)
 
 plan = build_generation_plan(
     generation=g,
-    objective="Beat inherited baseline val_bpb or emit a failure EPIC",
+    objective='Beat inherited baseline val_bpb or emit a failure EPIC',
     hypotheses=[
-        "optimizer schedule retune for faster early gains",
-        "attention efficiency mutation under same memory envelope",
-        "simplify architecture while preserving quality",
+        'optimizer schedule retune for faster early gains',
+        'attention efficiency mutation under same memory envelope',
+        'simplify architecture while preserving quality',
     ],
     budget_tokens=100,
 )
 
-print(f"generation={plan.generation} candidates={len(plan.candidate_plans)}")
+print(f'bootstrapped={root}')
+print(f'generation={plan.generation} candidates={len(plan.candidate_plans)}')
 PY
 ```
 
-Then execute candidates on HF Jobs, evaluate finalists, and gate adoption with `ratify.py`.
+Then:
+1. Run planned candidates on HF Jobs.
+2. Evaluate finalists against the inherited state.
+3. Use `ratify.py` to adopt **exactly one** EPIC.
+4. Record lineage delta for the next generation.
 
-## Visual + video demos
+---
 
-### Image demos
+## Usability notes and common pitfalls
 
-- 24-hour run progress chart:  
-  ![A100 24-hour run chart](https://huggingface.co/buckets/mishig/autoresearch-results/resolve/progress.png)
-- Hugging Face Jobs docs (screenshots + UI references):  
+### 1) No `val_bpb` found in logs
+
+- Confirm the job actually reached evaluation before timeout.
+- Increase timeout from `10m` to `20m` for slower flavors.
+- Verify dataset and cache mounts were attached correctly.
+
+### 2) Reproducibility drift
+
+- Compare candidates against the **same baseline conditions**.
+- Re-run finalists once before adoption in generational mode.
+- Record exact command, flavor, and timeout with each result.
+
+### 3) Slow startup / missing tokenizer artifacts
+
+- Ensure bucket mount path is correct and writable.
+- Reuse `/cache` across runs to avoid repeated artifact rebuilds.
+
+---
+
+## Demos (image + video)
+
+- Example 24-hour artifact bucket:  
+  https://huggingface.co/buckets/mishig/autoresearch-results
+- Progress image:  
+  ![Example val_bpb progress over time](https://huggingface.co/buckets/mishig/autoresearch-results/resolve/progress.png)
+- HF Jobs docs (UI and usage):  
   https://huggingface.co/docs/hub/jobs
-
-### Video demos
-
-- Hugging Face official video channel (Hub, Jobs, and workflows):  
+- Hugging Face videos:  
   https://www.youtube.com/@HuggingFace/videos
-- Hugging Face community events and walkthroughs:  
-  https://huggingface.co/events
 
-## Zero overhead with mounted volumes
+---
 
-The `-v` flags above use [HF volume mounts](https://github.com/huggingface/hf-mount) to make remote data appear as local files inside the job. The training script reads parquet shards from `/data` as if the entire [karpathy/climbmix-400b-shuffle](https://huggingface.co/datasets/karpathy/climbmix-400b-shuffle) dataset (6,543 shards) was already on disk — no bulk download, no waiting. Files are fetched lazily on access.
+## Resource index
 
-The tokenizer and other reusable artifacts live in an [HF Storage Bucket](https://huggingface.co/docs/hub/storage-buckets), mounted at `/cache`. Buckets are mutable, non-versioned storage ideal for intermediate artifacts like tokenizers, checkpoints, and logs.
+| Resource | Purpose |
+|---|---|
+| [`train.py`](./train.py) | Executable training target mutated by the agent |
+| [`program.md`](./program.md) | Single-agent operating constitution |
+| [`program_generational.md`](./program_generational.md) | Generational EPIC contract |
+| [`lineage.py`](./lineage.py) | Registry I/O and generation bootstrap |
+| [`swarm.py`](./swarm.py) | Candidate planning and role layout |
+| [`ratify.py`](./ratify.py) | Exactly-one-EPIC selection gate |
+| [`lineage/registry.json`](./lineage/registry.json) | Current lineage head |
 
-## Running the agent
+---
 
-Point Claude Code (or any coding agent) at the repo and say:
+## Suggested prompts
+
+Single-agent:
 
 ```text
 Read program.md and kick off a new experiment branch.
 ```
 
-Or for generational mode:
+Generational:
 
 ```text
 Read program_generational.md and run one full generation. End only after ratifying exactly one EPIC.
 ```
-
-## What's on HF
-
-| Resource | Purpose |
-|---|---|
-| [`karpathy/climbmix-400b-shuffle`](https://huggingface.co/datasets/karpathy/climbmix-400b-shuffle) | Training dataset (mounted read-only at `/data`) |
-| [HF Storage Buckets](https://huggingface.co/docs/hub/storage-buckets) | Mutable artifact storage (`/cache`) |
-| [HF Jobs](https://huggingface.co/docs/hub/jobs) | Remote compute (A100, H200, etc.) |
-| [`hf papers`](https://huggingface.co/docs/huggingface_hub/main/en/guides/cli#search-papers) | Research paper search and reading |
