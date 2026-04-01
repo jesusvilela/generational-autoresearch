@@ -44,6 +44,19 @@ The `-v` flags above use [HF volume mounts](https://github.com/huggingface/hf-mo
 
 The tokenizer and other reusable artifacts live in an [HF Storage Bucket](https://huggingface.co/docs/hub/storage-buckets) ([`mishig/autoresearch-cache`](https://huggingface.co/buckets/mishig/autoresearch-cache)), mounted read-write at `/cache`. The original repo retrains a BPE tokenizer from scratch every run (~60s on CPU). By storing it in a bucket, we skip that entirely — zero compute wasted on repetitive setup work. Buckets are mutable, non-versioned storage ideal for intermediate artifacts like tokenizers, checkpoints, and logs.
 
+
+## Generational mode (lineage + swarm)
+
+In addition to the original single-loop harness (`program.md`), this repo now includes a generational extension:
+
+- **`program_generational.md`** — generation contract with exactly-one-EPIC ratification
+- **`lineage.py`** — lineage registry/state helpers
+- **`swarm.py`** — role-based candidate planning
+- **`ratify.py`** — hard gate that enforces one ratified EPIC
+- **`lineage/registry.json`** — append-only registry seed
+
+This keeps the original atomic unit (`train.py` + HF Jobs + `val_bpb`) while adding recursive inheritance across generations.
+
 ## Running the agent
 
 Point Claude Code (or any AI agent) at the repo and say:
